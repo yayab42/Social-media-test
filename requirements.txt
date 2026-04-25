@@ -1,0 +1,10 @@
+Flask
+Flask-SQLAlchemy
+Flask-JWT-Extended
+click
+Faker
+psycopg[binary]
+pydantic>=2,<3
+email-validator>=2,<3
+python-usernames>=1.1,<2
+pytest
