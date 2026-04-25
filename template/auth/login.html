@@ -1,0 +1,41 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block content %}
+  <section>
+    <h1>Login</h1>
+    <form id="login-form">
+      <input name="username" placeholder="username" required>
+      <input name="password" type="password" placeholder="password" required>
+      <button type="submit">Login</button>
+    </form>
+    <p id="login-message" class="message"></p>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    document.getElementById("login-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const form = new FormData(event.target);
+      const username = form.get("username");
+      const password = form.get("password");
+
+      const result = await callApi("/login", "POST", {
+        username: username,
+        password: password,
+      });
+
+      if (!result.ok) {
+        showMessage("login-message", friendlyError(result.data));
+        return;
+      }
+
+      localStorage.setItem("token", result.data.access_token);
+      localStorage.setItem("username", username);
+      window.location.href = "/web/";
+    });
+  </script>
+{% endblock %}

@@ -1,0 +1,123 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Feed{% endblock %}
+
+{% block content %}
+  <section>
+    <h1>Feed</h1>
+    <form id="post-form">
+      <textarea name="content" placeholder="Nouveau post" required></textarea>
+      <button type="submit">Publier</button>
+    </form>
+    <p id="post-message" class="message"></p>
+  </section>
+
+  <section>
+    <button type="button" id="reload-feed">Recharger</button>
+    <div id="feed"></div>
+    <div class="pagination">
+      <button type="button" id="previous-page">Précédent</button>
+      <span id="page-info"></span>
+      <button type="button" id="next-page">Suivant</button>
+    </div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    let page = 1;
+    const perPage = 10;
+
+    function addPost(post) {
+      const article = document.createElement("article");
+      const content = document.createElement("p");
+      const details = document.createElement("small");
+
+      article.className = "post";
+      content.textContent = post.content;
+      details.textContent = formatDate(post.timestamp);
+
+      article.append(content, details);
+      document.getElementById("feed").appendChild(article);
+    }
+
+    function showPagination(pagination) {
+      if (pagination.total_pages === 0) {
+        document.getElementById("page-info").textContent = "Aucun post";
+        document.getElementById("previous-page").disabled = true;
+        document.getElementById("next-page").disabled = true;
+        return;
+      }
+
+      document.getElementById("page-info").textContent =
+        "Page " + pagination.page + " / " + pagination.total_pages;
+
+      document.getElementById("previous-page").disabled = pagination.page <= 1;
+      document.getElementById("next-page").disabled =
+        pagination.page >= pagination.total_pages;
+    }
+
+    async function loadFeed() {
+      const feed = document.getElementById("feed");
+      feed.innerHTML = "";
+
+      if (!token) {
+        showMessage("post-message", "Connecte-toi pour voir ton feed.");
+        document.getElementById("previous-page").disabled = true;
+        document.getElementById("next-page").disabled = true;
+        return;
+      }
+
+      const result = await callApi("/posts?page=" + page + "&per_page=" + perPage, "GET");
+
+      if (!result.ok) {
+        showMessage("post-message", friendlyError(result.data));
+        return;
+      }
+
+      showMessage("post-message", "");
+
+      for (const post of result.data.items) {
+        addPost(post);
+      }
+
+      showPagination(result.data.pagination);
+    }
+
+    document.getElementById("reload-feed").addEventListener("click", () => {
+      page = 1;
+      loadFeed();
+    });
+
+    document.getElementById("previous-page").addEventListener("click", () => {
+      page = page - 1;
+      loadFeed();
+    });
+
+    document.getElementById("next-page").addEventListener("click", () => {
+      page = page + 1;
+      loadFeed();
+    });
+
+    document.getElementById("post-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const form = new FormData(event.target);
+      const result = await callApi("/posts", "POST", {
+        content: form.get("content"),
+      });
+
+      if (!result.ok) {
+        showMessage("post-message", friendlyError(result.data));
+        return;
+      }
+
+      showMessage("post-message", "Post publie.");
+      event.target.reset();
+      page = 1;
+      loadFeed();
+    });
+
+    loadFeed();
+  </script>
+{% endblock %}

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Test front{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body>
+    <header>
+      <nav>
+        <a href="/web/">Feed</a>
+      </nav>
+      <nav>
+        <a id="logged-user" href="/web/users"></a>
+        <a href="/web/register">Register</a>
+        <a href="/web/login">Login</a>
+        <button type="button" id="logout-button">Logout</button>
+      </nav>
+    </header>
+
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+    <script>
+      const token = localStorage.getItem("token");
+      const username = localStorage.getItem("username");
+
+      function showMessage(id, message) {
+        document.getElementById(id).textContent = message;
+      }
+
+      function friendlyError(data) {
+        if (data.msg === "Missing Authorization Header") {
+          return "Connecte-toi pour utiliser cette action.";
+        }
+
+        if (data.error === "invalid credentials") {
+          return "Identifiants invalides.";
+        }
+
+        if (data.error === "validation failed") {
+          return "Formulaire invalide.";
+        }
+
+        return data.message || data.error || data.msg || "Une erreur est survenue.";
+      }
+
+      function formatDate(value) {
+        return new Date(value).toLocaleString("fr-FR", {
+          dateStyle: "short",
+          timeStyle: "short",
+        });
+      }
+
+      async function callApi(path, method, body) {
+        const headers = {};
+
+        if (body) {
+          headers["Content-Type"] = "application/json";
+        }
+
+        if (token) {
+          headers.Authorization = "Bearer " + token;
+        }
+
+        const response = await fetch(path, {
+          method: method,
+          headers: headers,
+          body: body ? JSON.stringify(body) : undefined,
+        });
+
+        const data = await response.json();
+        return { ok: response.ok, data: data };
+      }
+
+      if (username) {
+        const loggedUserLink = document.getElementById("logged-user");
+        loggedUserLink.textContent = username;
+        loggedUserLink.href = "/web/users?username=" + encodeURIComponent(username);
+      }
+
+      document.getElementById("logout-button").addEventListener("click", async () => {
+        if (token) {
+          await callApi("/logout", "POST");
+        }
+
+        localStorage.removeItem("token");
+        localStorage.removeItem("username");
+        window.location.href = "/web/login";
+      });
+    </script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

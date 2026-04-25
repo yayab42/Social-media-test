@@ -1,0 +1,187 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Utilisateur{% endblock %}
+
+{% block content %}
+  <section>
+    <h1>Utilisateur</h1>
+    <form id="profile-form">
+      <input name="username" placeholder="username" required>
+      <button type="submit">Voir profil</button>
+    </form>
+    <p id="profile-message" class="message"></p>
+    <button type="button" id="follow-button">Follow</button>
+    <button type="button" id="unfollow-button">Unfollow</button>
+    <p id="follow-message" class="message"></p>
+  </section>
+
+  <section>
+    <h2>Posts utilisateur</h2>
+    <div id="user-posts"></div>
+    <div class="pagination">
+      <button type="button" id="previous-user-posts-page">Précédent</button>
+      <span id="user-posts-page-info"></span>
+      <button type="button" id="next-user-posts-page">Suivant</button>
+    </div>
+  </section>
+
+  <section id="relations-section">
+    <h2>Relations</h2>
+    <button type="button" id="load-followers">Followers</button>
+    <button type="button" id="load-following">Follows</button>
+    <div id="users-list"></div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    let profileUsername = "";
+    let postsPage = 1;
+    const postsPerPage = 10;
+
+    function showUserList(users) {
+      const container = document.getElementById("users-list");
+      container.innerHTML = "";
+
+      for (const user of users) {
+        const link = document.createElement("a");
+        link.href = "/web/users?username=" + encodeURIComponent(user.username);
+        link.textContent = user.username;
+        container.appendChild(link);
+      }
+    }
+
+    function showPosts(posts) {
+      const container = document.getElementById("user-posts");
+      container.innerHTML = "";
+
+      for (const post of posts) {
+        const article = document.createElement("article");
+        const content = document.createElement("p");
+        const details = document.createElement("small");
+
+        article.className = "post";
+        content.textContent = post.content;
+        details.textContent = formatDate(post.timestamp);
+
+        article.append(content, details);
+        container.appendChild(article);
+      }
+    }
+
+    function showPostsPagination(pagination) {
+      if (pagination.total_pages === 0) {
+        document.getElementById("user-posts-page-info").textContent = "Aucun post";
+        document.getElementById("previous-user-posts-page").disabled = true;
+        document.getElementById("next-user-posts-page").disabled = true;
+        return;
+      }
+
+      document.getElementById("user-posts-page-info").textContent =
+        "Page " + pagination.page + " / " + pagination.total_pages;
+
+      document.getElementById("previous-user-posts-page").disabled =
+        pagination.page <= 1;
+      document.getElementById("next-user-posts-page").disabled =
+        pagination.page >= pagination.total_pages;
+    }
+
+    function showFollowButtons() {
+      const canFollow = token && profileUsername && profileUsername !== username;
+
+      document.getElementById("follow-button").hidden = !canFollow;
+      document.getElementById("unfollow-button").hidden = !canFollow;
+    }
+
+    async function loadProfile(username) {
+      profileUsername = username;
+
+      const profile = await callApi("/users/" + profileUsername, "GET");
+      const posts = await callApi(
+        "/users/" + profileUsername + "/posts?page=" + postsPage + "&per_page=" + postsPerPage,
+        "GET"
+      );
+
+      if (!profile.ok) {
+        showMessage("profile-message", friendlyError(profile.data));
+        profileUsername = "";
+        showFollowButtons();
+        return;
+      }
+
+      showMessage("profile-message", "Profil de " + profile.data.username);
+      showPosts(posts.ok ? posts.data.items : []);
+      if (posts.ok) {
+        showPostsPagination(posts.data.pagination);
+      }
+      showMessage("follow-message", "");
+      showUserList([]);
+      document.getElementById("relations-section").hidden = false;
+      showFollowButtons();
+    }
+
+    document.getElementById("profile-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const username = new FormData(event.target).get("username");
+      postsPage = 1;
+      loadProfile(username);
+    });
+
+    document.getElementById("previous-user-posts-page").addEventListener("click", () => {
+      postsPage = postsPage - 1;
+      loadProfile(profileUsername);
+    });
+
+    document.getElementById("next-user-posts-page").addEventListener("click", () => {
+      postsPage = postsPage + 1;
+      loadProfile(profileUsername);
+    });
+
+    document.getElementById("follow-button").addEventListener("click", async () => {
+      const result = await callApi("/users/follow/" + profileUsername, "POST");
+
+      showMessage("follow-message", result.ok ? result.data.message : friendlyError(result.data));
+    });
+
+    document.getElementById("unfollow-button").addEventListener("click", async () => {
+      const result = await callApi("/users/follow/" + profileUsername, "DELETE");
+
+      showMessage("follow-message", result.ok ? result.data.message : friendlyError(result.data));
+    });
+
+    document.getElementById("load-followers").addEventListener("click", async () => {
+      const result = await callApi("/users/" + profileUsername + "/followers", "GET");
+
+      if (!result.ok) {
+        showMessage("follow-message", friendlyError(result.data));
+        return;
+      }
+
+      showUserList(result.data);
+    });
+
+    document.getElementById("load-following").addEventListener("click", async () => {
+      const result = await callApi("/users/" + profileUsername + "/following", "GET");
+
+      if (!result.ok) {
+        showMessage("follow-message", friendlyError(result.data));
+        return;
+      }
+
+      showUserList(result.data);
+    });
+
+    const params = new URLSearchParams(window.location.search);
+    const usernameFromUrl = params.get("username");
+
+    showFollowButtons();
+    document.getElementById("relations-section").hidden = true;
+
+    if (usernameFromUrl) {
+      document.querySelector("#profile-form input").value = usernameFromUrl;
+      postsPage = 1;
+      loadProfile(usernameFromUrl);
+    }
+  </script>
+{% endblock %}
